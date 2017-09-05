@@ -1,0 +1,202 @@
+select * from ST.KPI_COMP_CD005_D_VERTICAL  fetch first 1 rows only
+[{'kpi_val': 140958494.0, 'last_month': 175443224.0, 'kpi_code': 'DCD005L00088', 'dim_val': 'HB', 'yesterday': 154713115.0, 'dim_code': 'PROV_ID', 'last_year': 167.0, 'op_time': '20160402'}]
+
+select TIME_ID, ZB_CODE, ZB_NAME, CHANNEL_CODE, CHANNEL_NAME,
+    PARENT_CHANNEL_CODE, PARENT_CHANNEL_NAME, VALUE, YESTERDAY, LAST_MONTH,
+    LAST_YEAR, LEVEL
+  from PT.KPI_TOTAL_DAILY;
+
+
+select OLD_CODE, NEW_CODE, TIME_ID, FLAG
+  from NWH.OLD2NEW_CFG;
+
+
+
+# -*- coding: GB2312 -*-
+import DB2,os,time,itertools,time
+from datetime import datetime
+import logging
+
+DB_CFG = {"db":"WBDB217","uid":"ipd","pwd":"Ipdmm17*"}
+def initlog():
+    logger = logging.getLogger()
+    dt = datetime.now()
+    logfile = '/db2home/ipd/zzf/kpi_move_' + dt.strftime('%Y%m%d')+'.log'
+    hdlr = logging.FileHandler(logfile)
+    formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+    hdlr.setFormatter(formatter)
+    logger.addHandler(hdlr)
+    logger.setLevel(logging.INFO)
+    return logger
+
+logging=initlog()
+
+class Row(dict):
+    def __getattr__(self, name):
+        try:
+            return self[name]
+        except KeyError:
+            raise AttributeError(name)
+
+class Connection(object):
+    def __init__ (self,dsn,uid,pwd):
+        self._dsn = dsn
+        self._uid = uid
+        self._pwd = pwd
+        self._db = None
+        self.reconnect()
+
+    def __del__(self):
+        self.close()
+
+    def close(self):
+        if getattr(self, "_db", None) is not None:
+            self._db.close()
+            self._db = None
+
+    def reconnect(self):
+        self.close()
+        self._db = DB2.connect(dsn=self._dsn, uid=self._uid, pwd=self._pwd)
+
+    def query(self, query, *parameters):
+        cursor = self._cursor()
+        try:
+            self._execute(cursor, query, parameters)
+            column_names = [d[0] for d in cursor.description]
+            return [Row(itertools.izip(column_names, row)) for row in cursor.fetchall()]
+        finally:
+            cursor.close()
+
+    def ExecCnt(self, query, *parameters):
+        cursor = self._cursor()
+        try:
+            self._execute(cursor, query, parameters)
+            self._db.commit()
+            return cursor.rowcount
+        finally:
+            cursor.close()
+
+    def _cursor(self):
+        return self._db.cursor()
+
+    def _execute(self, cursor, query, parameters):
+        if parameters == ():
+            return cursor.execute(query, parameters)
+        else:
+            return cursor.execute(query, parameters[0])
+
+    def ExecInsert(self, query, *parameters):
+        cursor = self._cursor()
+        try:
+            self._execute(cursor, query, parameters)
+            self._db.commit()
+            return True
+        finally:
+            cursor.close()
+
+def GetList(conn):
+    return conn.query("select old_code,new_code,time_id from nwh.old2new_cfg  where flag = 0 order by time_id with ur")
+
+
+def GetTask(conn,old_code,time_id):
+    return conn.query("select count(*) as cnt from pt.kpi_total_daily where zb_code = ? and time_id = ?  with ur",(old_code,str(time_id)))
+
+
+def LockTask(conn,old_code,new_code,time_id):
+    if conn.ExecCnt("update nwh.old2new_cfg set flag=1 where old_code = ? and new_code = ? and time_id=? and flag = 0 with ur",(old_code,new_code,time_id))==1:
+        return True
+    else:
+        return False
+
+def DeleteNew(conn,new_code,time_id):
+     if conn.ExecInsert("delete from ST.KPI_COMP_CD005_D_VERTICAL where kpi_code = ? and op_time = ? with ur",(new_code,str(time_id))) == True:
+        return True
+     else:
+        return False
+
+def InsertProv (conn,new_code,old_code,time_id):
+     if conn.ExecInsert("insert into ST.KPI_COMP_CD005_D_VERTICAL select ?,time_id,'PROV_ID',channel_code,value,yesterday,last_month,last_year from pt.kpi_total_daily where zb_
+code = ? and time_id = ? and level = 1 with ur",(new_code,old_code,str(time_id))) == True:
+          return True
+     else:
+          return False
+
+def InsertCity(conn,new_code,old_code,time_id):
+     if conn.ExecInsert("insert into ST.KPI_COMP_CD005_D_VERTICAL select ?,time_id,'CITY_ID',channel_code,value,yesterday,last_month,last_year from pt.kpi_total_daily where zb_
+code = ? and time_id = ? and level = 2 with ur",(new_code,old_code,str(time_id))) == True:
+          return True
+     else:
+          return False
+
+def InsertCounty(conn,new_code,old_code,time_id):
+     if conn.ExecInsert("insert into ST.KPI_COMP_CD005_D_VERTICAL select ?,time_id,'COUNTY_ID',channel_code,value,yesterday,last_month,last_year from pt.kpi_total_daily where z
+b_code = ? and time_id = ? and level = 3 with ur",(new_code,old_code,str(time_id))) == True:
+          return True
+     else:
+          return False
+
+def InsertMarket(conn,new_code,old_code,time_id):
+     if conn.ExecInsert("insert into ST.KPI_COMP_CD005_D_VERTICAL select ?,time_id,'MARKET_ID',channel_code,value,yesterday,last_month,last_year from pt.kpi_total_daily where z
+b_code = ? and time_id = ? and level in (4,5) with ur",(new_code,old_code,str(time_id))) == True:
+          return True
+     else:
+          return False
+
+def EndTask(conn,old_code,new_code,time_id):
+    if conn.ExecCnt("update nwh.old2new_cfg set flag=2 where old_code = ? and new_code = ? and time_id = ? and flag = 1 with ur",(old_code,new_code,time_id))==1:
+        return True
+    else:
+        return False
+
+def ExpTask(conn,old_code,new_code,time_id):
+  if conn.ExecCnt("update nwh.old2new_cfg set flag=3 where old_code = ? and new_code = ? and time_id = ? and flag = 0 with ur",(old_code,new_code,time_id))==1:
+    return True
+  else:
+    return False
+
+if __name__ == '__main__':
+  while 1:
+    conn = Connection(DB_CFG['db'], DB_CFG['uid'], DB_CFG['pwd'])
+    if GetList(conn):
+        for i in GetList(conn) :
+            _old_code,_new_code,_time_id = i['OLD_CODE'], i['NEW_CODE'], i['TIME_ID']
+            _tmp = GetTask(conn,_old_code,_time_id)
+            _tmp1 = _tmp[0]
+            if _tmp1['CNT'] == 0 :
+              _exp_state = ExpTask(conn,_old_code,_new_code,_time_id)
+              logging.info("指标ID：%s，指标周期：%s 无历史数据" % (_old_code,_time_id))
+              continue
+            _lock_status = LockTask(conn,_old_code,_new_code,_time_id)
+            if _lock_status == False : continue
+            try:
+                logging.info("指标ID：%s，指标周期：%s 开始插入数据" % (_old_code,_time_id))
+                if DeleteNew (conn,_new_code,_time_id):
+                  logging.info("删除指标: %s ，指标周期：%s 成功" % (_new_code,_time_id))
+                else:
+                  logging.info("删除指标: %s ，指标周期：%s 失败" % (_new_code,_time_id))
+                if InsertProv (conn,_new_code,_old_code,_time_id):
+                  logging.info("指标：%s 日期：%s 插入全省数据成功" % (_old_code,_time_id))
+                else:
+                  logging.info("指标：%s 日期：%s 插入全省数据失败" % (_old_code,_time_id))
+                if InsertCity (conn,_new_code,_old_code,_time_id):
+                  logging.info("指标：%s 日期：%s 插入地市数据成功" % (_old_code,_time_id))
+                else:
+                  logging.info("指标：%s 日期：%s 插入地市数据失败" % (_old_code,_time_id))
+                if InsertCounty (conn,_new_code,_old_code,_time_id):
+                  logging.info("指标：%s 日期：%s 插入县域数据成功" % (_old_code,_time_id))
+                else:
+                  logging.info("指标：%s 日期：%s 插入县域数据失败" % (_old_code,_time_id))
+                if InsertMarket (conn,_new_code,_old_code,_time_id):
+                  logging.info("指标：%s 日期：%s 插入营销中心数据成功" % (_old_code,_time_id))
+                else:
+                  logging.info("指标：%s 日期：%s 插入营销中心数据失败" % (_old_code,_time_id))
+                _end_status = EndTask(conn,_old_code,_new_code,_time_id)
+                if _end_status == False : continue
+            except Exception, ex:
+              logging.info("Exception 指标id:%s 指标周期:%s | Ex:%s" % (_old_code,_time_id,ex))
+              EndTask(conn,_old_code,_new_code,_time_id)
+    else:
+      timeArray = time.localtime(time.time())
+      nowtime = time.strftime("%Y-%m-%d %H:%M:%S", timeArray)
+      logging.info("未找到需处理的数据,休眠1分钟")
+      time.sleep(60)
