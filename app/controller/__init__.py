@@ -25,6 +25,9 @@ class Pyprog(object):
         if self._runtype == 'kpitocloud':
             logging.Info("启动kpitocloud守护模式,进程号%s,主机名%s" % (self._pid,self._host))
             while 1==1:
-                RunMv(debugger=self._debugger).mvAll()
-                sleep(300)
+                _re = RunMv(debugger=self._debugger).mvAll()
+                if _re:
+                    pass
+                else:
+                    sleep(60)
         

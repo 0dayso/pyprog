@@ -13,7 +13,7 @@ class WriteLog(object):
 
     def Info(self,Text):
         self._LogTaskId = datetime.datetime.now().strftime('%Y%m%d')
-        with open(("%sGbas_%s.log" % (self._LogDir,self._LogTaskId)),"a+",0) as f:
+        with open(("%sPyprog_%s.log" % (self._LogDir,self._LogTaskId)),"a+",0) as f:
             # fcntl.flock(f, fcntl.LOCK_EX)
             if self._taskname==None:
                 _msg = (datetime.datetime.now().strftime('Info [%Y-%m-%d %H:%M:%S] :') + Text).replace(os.linesep,'  ')
@@ -26,7 +26,7 @@ class WriteLog(object):
         if self._debugger == False: pass
         else:
             self._LogTaskId = datetime.datetime.now().strftime('%Y%m%d')
-            with open(("%sGbas_%s.log" % (self._LogDir,self._LogTaskId)),"a+",0) as f:
+            with open(("%sPyprog_%s.log" % (self._LogDir,self._LogTaskId)),"a+",0) as f:
                 # fcntl.flock(f, fcntl.LOCK_EX)
                 if is_horizontal==True:
                     if self._taskname==None:
@@ -43,7 +43,7 @@ class WriteLog(object):
 
     def Alarm(self,Text):
         self._LogTaskId = datetime.datetime.now().strftime('%Y%m%d')
-        with open(("%sGbas_%s.log" % (self._LogDir,self._LogTaskId)),"a+",0) as f:
+        with open(("%sPyprog_%s.log" % (self._LogDir,self._LogTaskId)),"a+",0) as f:
             # fcntl.flock(f, fcntl.LOCK_EX)
             if self._taskname==None:
                 _msg = (datetime.datetime.now().strftime('Alarm[%Y-%m-%d %H:%M:%S] :') + Text).replace(os.linesep,'  ')

@@ -17,7 +17,7 @@ if platform.uname()[1] in ('hbngdb1','hbdwdb2'):
             'db_type' : 'db2',
             'db_host' : '10.25.124.217',
             'db_port' : '50000',
-            'db_name' : 'webdb',
+            'db_name' : 'wbdb217',
             'db_user' : 'ipd',
             'db_password': 'Ipdmm17*'}
     }
